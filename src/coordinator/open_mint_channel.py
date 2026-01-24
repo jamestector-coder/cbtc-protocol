@@ -1,44 +1,57 @@
 #!/usr/bin/env python3
 # ------------------------------------------------------------
-# cBTC Protocol – Minting Channel Coordinator (EXPERIMENTAL)
+# cBTC Protocol – Open Minting Channel (EXPERIMENTAL)
 #
-# This script automates opening a Minting Channel on Bitcoin
-# Core regtest, reproducing the protocol rules:
-#
-# - Deposited BTC D must be between 0.05 and 5.0 BTC
-# - Split:
-#     70% principal (CP1_PRINCIPAL address)
-#     20% Redemption Pool
-#     10% Yield Pool
-# - Minted cBTC = 30,000 × D
+# This script:
+# - Connects to a specified CP wallet (default: CP1)
+# - Checks that it has enough BTC to deposit
+# - Splits the deposit D into:
+#     - 70% Principal
+#     - 20% Redemption Pool
+#     - 10% Yield Pool
+# - Sends BTC to:
+#     - CP Principal address (within the same CP wallet)
+#     - REDEMPTION_POOL wallet
+#     - YIELD_POOL wallet
+# - Calculates minted cBTC = 30,000 * D
+# - Appends a "mint" event to data/ledger.json
 #
 # ⚠️ WARNING:
-# - Experimental and for educational use only.
+# - Experimental and for regtest MVP only.
 # - DO NOT use on mainnet.
+#
+# Usage:
+#   python src/coordinator/open_mint_channel.py <deposit_btc> [CP_WALLET_NAME]
+#
+# Examples:
+#   python src/coordinator/open_mint_channel.py 1.0
+#       -> uses CP1 by default
+#
+#   python src/coordinator/open_mint_channel.py 0.5 CP2
+#       -> uses CP2 as the collateral provider wallet
 #
 # Dependencies:
 #   pip install python-bitcoinrpc
-#
-# Assumptions:
-# - Bitcoin Core is running in regtest with RPC enabled.
-# - RPC credentials match the values below.
-# - Wallets CP1, REDEMPTION_POOL and YIELD_POOL already exist.
-#
-# Usage (from repo root):
-#   python src/coordinator/open_mint_channel.py 1.3
-#
-# If no amount is given as an argument, the script will prompt
-# for a deposit amount interactively.
 # ------------------------------------------------------------
 
 from decimal import Decimal, getcontext
 from bitcoinrpc.authproxy import AuthServiceProxy, JSONRPCException
-import sys
-import json
-import datetime
 from pathlib import Path
+import datetime
+import json
+import sys
 
 getcontext().prec = 16
+
+# --- PROTOCOL CONSTANTS ----------------------------------------------------
+
+MIN_DEPOSIT = Decimal("0.05")
+MAX_DEPOSIT = Decimal("5.0")
+
+ISSUANCE_RATE = Decimal("30000")   # cBTC per BTC
+PRINCIPAL_PCT = Decimal("0.70")
+REDEMPTION_PCT = Decimal("0.20")
+YIELD_PCT = Decimal("0.10")
 
 # --- RPC CONFIG ------------------------------------------------------------
 
@@ -47,17 +60,8 @@ RPC_PASSWORD = "cbtcpassword"
 RPC_PORT = 18443
 RPC_HOST = "127.0.0.1"
 
-# Name of the wallets (must already exist in Bitcoin Core)
-CP_WALLET_NAME = "CP1"
 REDEMPTION_WALLET_NAME = "REDEMPTION_POOL"
 YIELD_WALLET_NAME = "YIELD_POOL"
-
-# Issuance rate: 30,000 cBTC per 1 BTC deposited
-MINT_RATE_PER_BTC = 30000
-
-# Deposit constraints
-MIN_DEPOSIT_BTC = Decimal("0.05")
-MAX_DEPOSIT_BTC = Decimal("5.0")
 
 # --- LEDGER CONFIG ---------------------------------------------------------
 
@@ -70,7 +74,7 @@ LEDGER_PATH = REPO_ROOT / "data" / "ledger.json"
 def load_ledger():
     """
     Load the JSON ledger from LEDGER_PATH.
-    If it does not exist or is invalid, start a fresh one.
+    If it does not exist or is invalid, return an empty ledger.
     """
     if not LEDGER_PATH.exists():
         return {"events": []}
@@ -79,11 +83,9 @@ def load_ledger():
         with LEDGER_PATH.open("r", encoding="utf-8") as f:
             data = json.load(f)
         if "events" not in data or not isinstance(data["events"], list):
-            # Malformed -> reset to safe default
             return {"events": []}
         return data
     except Exception:
-        # On any error, fall back to an empty ledger
         return {"events": []}
 
 
@@ -105,10 +107,10 @@ def append_ledger_event(event):
     save_ledger(ledger)
 
 
-# --- HELPER FUNCTIONS ------------------------------------------------------
+# --- RPC HELPERS -----------------------------------------------------------
 
 
-def make_wallet_client(wallet_name):
+def make_wallet_client(wallet_name: str) -> AuthServiceProxy:
     """
     Create an RPC client bound to a specific wallet.
     """
@@ -116,7 +118,7 @@ def make_wallet_client(wallet_name):
     return AuthServiceProxy(url)
 
 
-def check_regtest(client):
+def check_regtest(client: AuthServiceProxy) -> None:
     """
     Ensure we are running on regtest, not mainnet.
     """
@@ -126,168 +128,121 @@ def check_regtest(client):
         raise RuntimeError(f"Expected regtest chain, but node is on: {chain}")
 
 
-def parse_deposit_amount_from_argv():
-    """
-    If the user provided a deposit amount as a command-line argument,
-    parse and return it as a Decimal. Otherwise return None.
-    """
-    if len(sys.argv) >= 2:
-        raw = sys.argv[1]
-        try:
-            return Decimal(raw)
-        except Exception:
-            raise RuntimeError(f"Invalid deposit amount argument: {raw}")
-    return None
-
-
-def prompt_for_deposit_amount():
-    """
-    Interactively ask the user for a deposit amount in BTC.
-    """
-    raw = input(
-        f"Enter deposit amount in BTC (between {MIN_DEPOSIT_BTC} and {MAX_DEPOSIT_BTC}): "
-    ).strip()
-    try:
-        return Decimal(raw)
-    except Exception:
-        raise RuntimeError(f"Invalid deposit amount: {raw}")
-
-
-def validate_deposit_amount(deposit_btc):
-    """
-    Validate that the deposit amount is within the allowed range.
-    """
-    if deposit_btc < MIN_DEPOSIT_BTC:
-        raise RuntimeError(
-            f"Deposit {deposit_btc} BTC is below minimum {MIN_DEPOSIT_BTC} BTC."
-        )
-    if deposit_btc > MAX_DEPOSIT_BTC:
-        raise RuntimeError(
-            f"Deposit {deposit_btc} BTC exceeds maximum {MAX_DEPOSIT_BTC} BTC."
-        )
-    return deposit_btc
-
-
 # --- MAIN LOGIC ------------------------------------------------------------
 
 
-def open_mint_channel(deposit_btc):
-    """
-    Open a Minting Channel of size deposit_btc from CP1.
+def main():
+    # --- Parse CLI arguments -----------------------------------------------
+    if len(sys.argv) < 2:
+        print("Usage: python src/coordinator/open_mint_channel.py <deposit_btc> [CP_WALLET_NAME]")
+        sys.exit(1)
 
-    Splits deposit_btc into:
-      - 70% principal
-      - 20% Redemption Pool
-      - 10% Yield Pool
+    raw_deposit = sys.argv[1]
+    cp_wallet_name = sys.argv[2] if len(sys.argv) >= 3 else "CP1"
 
-    Sends a single transaction via CP1 wallet and prints:
-      - txid
-      - minted cBTC
-    """
+    try:
+        deposit_btc = Decimal(raw_deposit)
+    except Exception:
+        print(f"[ERROR] Invalid deposit amount: {raw_deposit}")
+        sys.exit(1)
 
-    deposit_btc = validate_deposit_amount(deposit_btc)
+    if deposit_btc < MIN_DEPOSIT or deposit_btc > MAX_DEPOSIT:
+        print(f"[ERROR] Deposit must be between {MIN_DEPOSIT} and {MAX_DEPOSIT} BTC.")
+        sys.exit(1)
 
-    # RPC clients for each wallet
-    cp_client = make_wallet_client(CP_WALLET_NAME)
-    redemption_client = make_wallet_client(REDEMPTION_WALLET_NAME)
-    yield_client = make_wallet_client(YIELD_WALLET_NAME)
+    # --- Connect to node & wallets -----------------------------------------
+    # Use a general client (any wallet) just to check regtest
+    general_client = make_wallet_client(cp_wallet_name)
+    check_regtest(general_client)
 
-    # Safety: confirm we are on regtest
-    check_regtest(cp_client)
+    # CP wallet:
+    cp_client = make_wallet_client(cp_wallet_name)
+    # Pool wallets:
+    red_client = make_wallet_client(REDEMPTION_WALLET_NAME)
+    yld_client = make_wallet_client(YIELD_WALLET_NAME)
 
-    # Check CP1 has enough balance
+    # --- Check CP balance ---------------------------------------------------
     cp_balance = Decimal(str(cp_client.getbalance()))
+    print(f"[INFO] CP wallet: {cp_wallet_name}")
+    print(f"[INFO] {cp_wallet_name} balance: {cp_balance} BTC")
+
     if cp_balance < deposit_btc:
-        raise RuntimeError(
-            f"CP1 balance {cp_balance} BTC is less than requested deposit {deposit_btc} BTC."
-        )
+        print(f"[ERROR] {cp_wallet_name} balance {cp_balance} BTC is less than requested deposit {deposit_btc} BTC.")
+        sys.exit(1)
 
-    print(f"[INFO] CP1 balance: {cp_balance} BTC")
-    print(f"[INFO] Opening Minting Channel with deposit D = {deposit_btc} BTC")
+    # --- Compute splits -----------------------------------------------------
+    D = deposit_btc
+    principal = (D * PRINCIPAL_PCT).quantize(Decimal("0.00000001"))
+    redemption_share = (D * REDEMPTION_PCT).quantize(Decimal("0.00000001"))
+    yield_share = (D * YIELD_PCT).quantize(Decimal("0.00000001"))
 
-    # Compute the BTC split (70% principal, 20% redemption, 10% yield)
-    principal_btc = (deposit_btc * Decimal("0.70")).quantize(Decimal("0.00000001"))
-    redemption_btc = (deposit_btc * Decimal("0.20")).quantize(Decimal("0.00000001"))
-    yield_btc = (deposit_btc * Decimal("0.10")).quantize(Decimal("0.00000001"))
+    print(f"[INFO] Opening Minting Channel with deposit D = {D} BTC")
+    print(f"[INFO] Principal:        {principal:.8f} BTC (70%)")
+    print(f"[INFO] Redemption pool: {redemption_share:.8f} BTC (20%)")
+    print(f"[INFO] Yield pool:      {yield_share:.8f} BTC (10%)")
 
-    total_split = principal_btc + redemption_btc + yield_btc
-    if total_split > deposit_btc:
-        raise RuntimeError(
-            f"Split sum {total_split} exceeds deposit {deposit_btc}. Check rounding."
-        )
-
-    print(f"[INFO] Principal:        {principal_btc} BTC (70%)")
-    print(f"[INFO] Redemption pool: {redemption_btc} BTC (20%)")
-    print(f"[INFO] Yield pool:      {yield_btc} BTC (10%)")
-
-    # Generate destination addresses
-    principal_address = cp_client.getnewaddress("CP1_PRINCIPAL", "bech32")
-    redemption_address = redemption_client.getnewaddress("REDEMPTION_POOL", "bech32")
-    yield_address = yield_client.getnewaddress("YIELD_POOL", "bech32")
+    # --- Derive destinations -----------------------------------------------
+    # Principal: stays in CP wallet, but moved to a labeled address
+    principal_address = cp_client.getnewaddress(f"{cp_wallet_name}_PRINCIPAL", "bech32")
+    # Redemption: goes to REDEMPTION_POOL wallet
+    red_address = red_client.getnewaddress("REDEMPTION_POOL", "bech32")
+    # Yield: goes to YIELD_POOL wallet
+    yld_address = yld_client.getnewaddress("YIELD_POOL", "bech32")
 
     print(f"[INFO] Principal address:   {principal_address}")
-    print(f"[INFO] Redemption address:  {redemption_address}")
-    print(f"[INFO] Yield address:       {yield_address}")
+    print(f"[INFO] Redemption address:  {red_address}")
+    print(f"[INFO] Yield address:       {yld_address}")
 
-    # Construct the outputs map for sendmany
+    # --- Construct the transaction from CP wallet --------------------------
+    # We use sendmany so that:
+    #  - Inputs come from CP wallet
+    #  - Outputs go to CP principal + Redemption Pool + Yield Pool
+
     outputs = {
-        principal_address: float(principal_btc),
-        redemption_address: float(redemption_btc),
-        yield_address: float(yield_btc),
+        principal_address: float(principal),
+        red_address: float(redemption_share),
+        yld_address: float(yield_share),
     }
-
-    # We will subtract the fee from the principal output
-    subtract_fee_from = [principal_address]
 
     try:
         txid = cp_client.sendmany(
-            "",              # dummy account (unused)
+            "",              # empty string means: use default account (descriptor wallet)
             outputs,
-            1,               # minconf
-            "",              # comment
-            subtract_fee_from
+            0,               # minconf
+            "cBTC Minting Channel"
         )
     except JSONRPCException as e:
-        raise RuntimeError(f"sendmany failed: {e}") from e
+        print(f"[ERROR] sendmany failed: {e}")
+        sys.exit(1)
 
-    # Compute minted cBTC off-chain
-    minted_cbtc = int(deposit_btc * MINT_RATE_PER_BTC)
-
-    # Log event to ledger.json
-    event = {
-        "type": "mint",
-        "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
-        "cp_wallet": CP_WALLET_NAME,
-        "deposit_btc": str(deposit_btc),
-        "principal_btc": str(principal_btc),
-        "redemption_btc": str(redemption_btc),
-        "yield_btc": str(yield_btc),
-        "minted_cbtc": minted_cbtc,
-        "txid": txid,
-    }
-    append_ledger_event(event)
+    # --- Compute minted cBTC -----------------------------------------------
+    minted_cbtc = (D * ISSUANCE_RATE).quantize(Decimal("1"))
 
     print("\n[RESULT] Minting Channel opened successfully.")
     print(f"         Transaction ID: {txid}")
     print(f"         Minted cBTC:    {minted_cbtc} cBTC")
+    print(f"         CP wallet used: {cp_wallet_name}")
+
+    # --- Append event to ledger --------------------------------------------
+    event = {
+        "type": "mint",
+        "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+        "cp_wallet": cp_wallet_name,
+        "deposit_btc": str(D),
+        "principal_btc": str(principal),
+        "redemption_btc": str(redemption_share),
+        "yield_btc": str(yield_share),
+        "minted_cbtc": str(minted_cbtc),
+        "txid": txid,
+    }
+    append_ledger_event(event)
+
     print("\n[NOTE] Event appended to data/ledger.json")
     print("       (off-chain cBTC accounting for regtest simulations).")
 
 
-def main():
+if __name__ == "__main__":
     try:
-        # Try command-line argument first
-        deposit_arg = parse_deposit_amount_from_argv()
-        if deposit_arg is None:
-            # Fallback to interactive prompt
-            deposit_btc = prompt_for_deposit_amount()
-        else:
-            deposit_btc = deposit_arg
-
-        open_mint_channel(deposit_btc)
+        main()
     except Exception as e:
         print(f"[ERROR] {e}")
-
-
-if __name__ == "__main__":
-    main()
