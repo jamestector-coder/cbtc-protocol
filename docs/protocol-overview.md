@@ -83,6 +83,30 @@ This means:
 - When coverage is tighter, the rate is reduced just enough to keep
   **post-redemption coverage ≥ 50%**.
 
+  ### Reference implementation (regtest MVP)
+
+A minimal reference implementation of the redemption pricing logic is provided
+in this repository for experimentation and review:
+
+- `src/coordinator/calc_redemption_rate.py`
+
+The script implements the deterministic redemption-rate formula used by the
+protocol to ensure that post-redemption coverage never falls below 50%.
+
+It takes as input:
+- outstanding cBTC supply,
+- BTC balance of the Redemption Pool,
+- requested redemption amount (cBTC),
+
+and outputs:
+- the applicable redemption rate,
+- BTC paid,
+- coverage before and after redemption,
+- the applicable redemption tier.
+
+This tool is intended for research, simulation, and verification only.
+It is **not** production software.
+
 ---
 
 ## Yield

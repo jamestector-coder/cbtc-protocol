@@ -65,6 +65,22 @@ If any invariant is violated, the protocol is considered broken.
 6. Redemption pricing must always preserve post-redemption coverage ≥ 50% of
    full-floor liability.
 
+The redemption rate for any redemption request MUST be computed such that
+post-redemption coverage is never less than 50% of full-floor liability.
+
+#### Reference implementation
+
+A reference implementation of the redemption pricing logic used to enforce the
+minimum coverage invariant is provided in:
+
+- `src/coordinator/calc_redemption_rate.py`
+
+This implementation is provided for transparency and reproducibility and
+demonstrates how the protocol computes the maximum safe redemption rate for a
+given redemption request.
+
+The script is intended for regtest simulations and protocol review.
+
 ---
 
 ## 6. Solvency Invariants
