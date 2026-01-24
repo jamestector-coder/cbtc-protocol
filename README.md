@@ -1,12 +1,14 @@
 # cBTC Protocol – Regtest MVP
 
-cBTC is a Bitcoin-native working capital protocol that allows Bitcoin holders to lock BTC under deterministic rules and issue a Bitcoin-backed asset (cBTC) without fiat pegs, price oracles, or liquidations.
+cBTC is a Bitcoin-native working capital protocol that allows Bitcoin holders
+to lock BTC under deterministic rules and issue a Bitcoin-backed asset (cBTC)
+without fiat pegs, price oracles, or liquidations.
 
 This repository contains:
 
 - A **regtest-based MVP** to simulate Minting Channels, redemption, and yield.
-- Coordinator scripts to interact with **Bitcoin Core**.
-- Documentation and examples so others can reproduce and extend the setup.
+- Early coordinator logic and experiments interacting with **Bitcoin Core**.
+- Documentation and walkthroughs so others can reproduce and review the protocol behavior.
 
 > ⚠️ This is experimental software and **not** production-ready.  
 > Use only on Bitcoin regtest or test networks.
@@ -17,58 +19,74 @@ This repository contains:
 
 - `docs/` – Documentation
   - `protocol-overview.md` – High-level summary of the protocol
-  - `regtest-setup.md` – How to run Bitcoin Core in regtest and use the scripts
+  - `regtest-setup.md` – How to run Bitcoin Core in regtest
+  - `regtest-walkthrough-minting-channel-1.md` – Full lifecycle walkthrough
   - `whitepaper/` – Whitepaper PDFs or markdown
 
 - `src/` – Source code
-  - `coordinator/` – Coordinator logic (open/close Minting Channels, redemptions)
+  - `coordinator/` – Planned coordinator logic (Minting Channels, redemptions)
 
 - `scripts/` – Helper scripts and examples
-  - `regtest/` – Commands and scripts to bootstrap a local regtest environment
+  - `regtest/` – Commands and notes to bootstrap a local regtest environment
 
 ---
 
 ## Goals
 
 1. Provide a **minimal working prototype** of cBTC on Bitcoin regtest.
-2. Make it easy for others to **clone, run, and experiment** with the protocol.
-3. Serve as a foundation for more advanced implementations (Lightning, Taproot Assets, etc).
+2. Make it easy for others to **clone, run, and verify** the protocol behavior.
+3. Serve as a foundation for more advanced implementations
+   (e.g. Lightning, Taproot Assets).
+
+---
+
+## Current Status
+
+- ✔️ Core protocol invariants verified manually on Bitcoin regtest
+- ✔️ Minting Channel lifecycle demonstrated (open, early close, redemption)
+- ✔️ Deterministic BTC splits and redemption behavior validated
+- ⏳ Automation scripts in progress
+- ⏳ No Lightning or Taproot integration yet
 
 ---
 
 ## Getting Started (Regtest)
 
-1. Install **Bitcoin Core** (v24+ recommended).
-2. Enable `regtest` and `server` mode in `bitcoin.conf`.
-3. Start `bitcoind` in regtest.
-4. Run the coordinator scripts from `src/coordinator/` to:
-   - fund a CP wallet;
-   - open a Minting Channel;
-   - track cBTC issuance and Redemption Pool state.
+Start here:
 
-Detailed steps are in [`docs/regtest-setup.md`](docs/regtest-setup.md) (to be written).
+1. **Regtest setup**  
+   👉 [`docs/regtest-setup.md`](docs/regtest-setup.md)
+
+2. **Minting Channel walkthrough**  
+   👉 [`docs/regtest-walkthrough-minting-channel-1.md`](docs/regtest-walkthrough-minting-channel-1.md)
+
+These documents show:
+- how wallets are created,
+- how BTC is split on-chain (70 / 15 / 15),
+- how early closure forfeits yield,
+- how redemptions are paid exclusively from the Redemption Pool,
+- how solvency is preserved.
 
 ---
 
 ## Contributing
 
-Contributions, reviews, and experiments are welcome.
+Contributions, reviews, and critical feedback are welcome.
 
 - Open issues to:
   - ask questions,
-  - propose changes,
-  - suggest alternative designs.
+  - challenge assumptions,
+  - propose alternative designs.
 - Submit pull requests for:
-  - code improvements,
+  - code,
   - documentation,
-  - test scenarios.
+  - additional regtest scenarios.
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) (to be created) for contribution guidelines.
+A `CONTRIBUTING.md` file will be added as the project evolves.
 
 ---
 
 ## License
 
-This project is licensed under the MIT License. See [`LICENSE`](LICENSE) for details.
-# cbtc-protocol
-Bitcoin-native working capital protocol - cBTC regtest MVP and tools
+This project is licensed under the MIT License.  
+See [`LICENSE`](LICENSE) for details.
