@@ -76,6 +76,12 @@ createwallet "CP1"
 createwallet "REDEMPTION_POOL"
 createwallet "YIELD_POOL"
 
+Note:
+Additional CP wallets (e.g. CP2, CP3…) can be created at any time using:
+createwallet "CP2"
+createwallet "CP3"
+Each CP wallet can independently open Minting Channels.
+
 Verify that they exist:
 
 listwallets
@@ -120,9 +126,9 @@ Verify CP1 balance:
 
 loadwallet "CP1"
 getbalance
+
 7. Result
 You now have:
-
 A local Bitcoin Core node running in regtest
 
 Four wallets:
@@ -141,13 +147,16 @@ From the repository root:
 python src/coordinator/open_mint_channel.py 0.5
 python src/coordinator/status.py
 python src/coordinator/redeem_cbtc.py
+
+Minting Channels may be opened from any CP wallet:
+python src/coordinator/open_mint_channel.py 0.5 CP2
+python src/coordinator/open_mint_channel.py 0.8 CP3
+
 These scripts allow you to:
-
 open Minting Channels,
-
 observe global protocol coverage,
-
 redeem cBTC safely while preserving solvency invariants.
+
 
 For protocol rules and guarantees, see:
 docs/protocol-overview.md

@@ -14,7 +14,8 @@ This repository contains **MVP v0.1**, implemented on **Bitcoin regtest**, focus
 This MVP proves that the core cBTC mechanics work:
 
 ### ✔ Minting Channels
-- Any Collateral Provider (CP) can deposit BTC (`0.05–5 BTC`)
+- Any Collateral Provider (CP) can deposit BTC (`0.05–5 BTC`) using their own wallet
+  (e.g. CP1, CP2, CP3…)
 - Deposits are split deterministically:
   - **70%** Principal (time-locked conceptually)
   - **20%** Global Redemption Pool
@@ -97,7 +98,7 @@ See [`docs/regtest-setup.md`](docs/regtest-setup.md) for a complete, step-by-ste
 Next milestones:
 - clean reset scenario
 - Lightning / Taproot Assets design
-- multi-CP simulations
+- multi-CP stress simulations
 - economic stress testing
 
 ---

@@ -24,6 +24,17 @@ For every deposit `D`:
 
 The sum must never exceed `D`.
 
+## Multiple Collateral Providers (CPs)
+
+The protocol supports multiple independent Collateral Providers (CPs).
+
+- Each CP opens Minting Channels using their own wallet.
+- Principal and yield remain isolated per CP.
+- All CPs contribute to a single global Redemption Pool.
+- Solvency guarantees are enforced globally, not per CP.
+
+No CP can weaken protocol solvency through individual actions.
+
 ---
 
 ## Invariant 3 – Redemption Pool Solvency

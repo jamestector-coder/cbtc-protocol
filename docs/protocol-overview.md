@@ -1,8 +1,12 @@
 # cBTC Protocol – Overview
 
-cBTC is a Bitcoin-native working capital protocol built around **deterministic credit creation** rather than price pegs or liquidations.
+cBTC is a Bitcoin-native working capital protocol. It issues cBTC through
+**Minting Channels**, where Bitcoin is locked under deterministic rules by
+multiple independent Collateral Providers (CPs).
 
-The protocol issues cBTC through **Minting Channels**, where BTC is locked and split under predefined rules.
+Any CP (e.g. CP1, CP2, CP3…) may open a Minting Channel using their own wallet.
+All Minting Channels contribute to a **single global Redemption Pool**, which
+enforces protocol-wide solvency.
 
 ---
 
@@ -11,6 +15,14 @@ The protocol issues cBTC through **Minting Channels**, where BTC is locked and s
 ### Minting
 - Deposit range: **0.05 – 5 BTC**
 - Issuance rate: **30,000 cBTC per BTC deposited**
+
+Minting Channels:
+- Can be opened by any CP wallet (CP1, CP2, CP3, …).
+- Max loan-to-value: 30%.
+- Deposit split per Minting Channel:
+  - 70% principal (time-locked, CP-owned)
+  - 20% Redemption Pool (global)
+  - 10% prefunded yield (isolated per channel)
 
 ### Collateral Split
 Each deposit `D` is split as follows:
