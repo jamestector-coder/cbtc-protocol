@@ -24,8 +24,8 @@ If any invariant is violated, the protocol is considered broken.
 
 1. Deposited BTC is always split deterministically:
    - 70% → Principal
-   - 15% → Redemption Pool
-   - 15% → Yield allocation
+   - 20% → Redemption Pool
+   - 10% → Yield allocation
 2. These three roles are **strictly segregated**.
 3. Funds assigned to one role must never be reused for another role.
 
@@ -62,6 +62,8 @@ If any invariant is violated, the protocol is considered broken.
 3. cBTC is burned upon redemption.
 4. Principal and yield collateral are never used for redemption.
 5. Redemption rules are deterministic and publicly verifiable.
+6. Redemption pricing must always preserve post-redemption coverage ≥ 50% of
+   full-floor liability.
 
 ---
 
@@ -73,6 +75,9 @@ If any invariant is violated, the protocol is considered broken.
 3. Redemption rates follow deterministic tiers based on coverage.
 4. Issuance halts automatically if solvency thresholds are breached.
 5. No discretionary intervention or emergency governance exists.
+6. Global coverage is defined as P / (O · f) with a hard lower bound of 50%
+   enforced by redemption pricing.
+
 
 ---
 

@@ -37,13 +37,17 @@ Minting Channel parameters:
 BTC allocation:
 
 - Principal (70%): 0.91000000 BTC
-- Redemption Pool (15%): 0.19500000 BTC
-- Yield Pool (15%): 0.19500000 BTC
+- Redemption Pool (20%): 0.26000000 BTC
+- Yield Pool (10%): 0.13000000 BTC
 
 Redemption floor:
 
 - 1 cBTC = 0.00001 BTC
 - Maximum redemption liability: 0.39000000 BTC
+
+Initial Redemption Pool coverage:
+
+- Coverage = 0.26 / 0.39 ≈ 66.67%
 
 ---
 
@@ -53,10 +57,8 @@ A single on-chain transaction was created from the CP1 wallet
 with three outputs:
 
 - 0.91000000 BTC → CP1_PRINCIPAL address
-- 0.19500000 BTC → REDEMPTION_POOL
-- 0.19500000 BTC → YIELD_POOL
-
-The transaction was mined and confirmed.
+- 0.26000000 BTC → REDEMPTION_POOL
+- 0.13000000 BTC → YIELD_POOL
 
 ### Post-mint balances
 

@@ -62,7 +62,7 @@ Start here:
 
 These documents show:
 - how wallets are created,
-- how BTC is split on-chain (70 / 15 / 15),
+- how BTC is split on-chain (70 / 10 / 20),
 - how early closure forfeits yield,
 - how redemptions are paid exclusively from the Redemption Pool,
 - how solvency is preserved.
