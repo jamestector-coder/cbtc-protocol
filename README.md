@@ -1,92 +1,107 @@
-# cBTC Protocol – Regtest MVP
+# cBTC Protocol – Regtest MVP v0.1
 
-cBTC is a Bitcoin-native working capital protocol that allows Bitcoin holders
-to lock BTC under deterministic rules and issue a Bitcoin-backed asset (cBTC)
-without fiat pegs, price oracles, or liquidations.
+cBTC is a **Bitcoin-native working capital protocol** that allows Bitcoin holders to lock BTC under deterministic rules and issue a Bitcoin-backed asset (cBTC), **without fiat pegs, price oracles, or liquidations**.
 
-This repository contains:
+This repository contains **MVP v0.1**, implemented on **Bitcoin regtest**, focusing on correctness, transparency, and reproducibility.
 
-- A **regtest-based MVP** to simulate Minting Channels, redemption, and yield.
-- Early coordinator logic and experiments interacting with **Bitcoin Core**.
-- Documentation and walkthroughs so others can reproduce and review the protocol behavior.
-
-> ⚠️ This is experimental software and **not** production-ready.  
-> Use only on Bitcoin regtest or test networks.
+> ⚠️ Experimental software  
+> This project is **not production-ready** and must only be used on Bitcoin regtest or test environments.
 
 ---
 
-## Project Structure
+## What This MVP Demonstrates
 
-- `docs/` – Documentation
-  - `protocol-overview.md` – High-level summary of the protocol
-  - `regtest-setup.md` – How to run Bitcoin Core in regtest
-  - `regtest-walkthrough-minting-channel-1.md` – Full lifecycle walkthrough
-  - `whitepaper/` – Whitepaper PDFs or markdown
+This MVP proves that the core cBTC mechanics work:
 
-- `src/` – Source code
-  - `coordinator/` – Planned coordinator logic (Minting Channels, redemptions)
+### ✔ Minting Channels
+- Any Collateral Provider (CP) can deposit BTC (`0.05–5 BTC`)
+- Deposits are split deterministically:
+  - **70%** Principal (time-locked conceptually)
+  - **20%** Global Redemption Pool
+  - **10%** Yield Pool
+- cBTC issuance rate:
+  - **30,000 cBTC per 1 BTC deposited**
+- Minting is logged in an auditable off-chain ledger
 
-- `scripts/` – Helper scripts and examples
-  - `regtest/` – Commands and notes to bootstrap a local regtest environment
+### ✔ Global Solvency & Coverage
+- A global **Redemption Pool** backs all outstanding cBTC
+- Coverage is continuously computed:
+  - Floor liability = `outstanding cBTC × 0.00001 BTC`
+- Coverage tiers determine redemption behavior
 
----
+### ✔ Deterministic Redemptions
+- cBTC holders can redeem cBTC for BTC
+- Redemption rate is computed to ensure:
+  - **Post-redemption coverage ≥ 50%**
+- Redemptions:
+  - Burn cBTC (off-chain)
+  - Pay BTC from the Redemption Pool (on-chain)
 
-## Goals
-
-1. Provide a **minimal working prototype** of cBTC on Bitcoin regtest.
-2. Make it easy for others to **clone, run, and verify** the protocol behavior.
-3. Serve as a foundation for more advanced implementations
-   (e.g. Lightning, Taproot Assets).
-
----
-
-## Current Status
-
-- ✔️ Core protocol invariants verified manually on Bitcoin regtest
-- ✔️ Minting Channel lifecycle demonstrated (open, early close, redemption)
-- ✔️ Deterministic BTC splits and redemption behavior validated
-- ⏳ Automation scripts in progress
-- ⏳ No Lightning or Taproot integration yet
-
----
-
-## Getting Started (Regtest)
-
-Start here:
-
-1. **Regtest setup**  
-   👉 [`docs/regtest-setup.md`](docs/regtest-setup.md)
-
-2. **Minting Channel walkthrough**  
-   👉 [`docs/regtest-walkthrough-minting-channel-1.md`](docs/regtest-walkthrough-minting-channel-1.md)
-
-These documents show:
-- how wallets are created,
-- how BTC is split on-chain (70 / 10 / 20),
-- how early closure forfeits yield,
-- how redemptions are paid exclusively from the Redemption Pool,
-- how solvency is preserved.
+### ✔ Fully Reproducible
+- Anyone can:
+  - Run Bitcoin Core in regtest
+  - Create wallets
+  - Mint cBTC
+  - Redeem cBTC
+  - Verify coverage math
 
 ---
 
-## Contributing
+## What This MVP Does *Not* Include (Yet)
 
-Contributions, reviews, and critical feedback are welcome.
+- Lightning integration
+- Taproot Assets representation
+- On-chain enforcement of mint caps
+- Multi-party custody or threshold signing
+- Production security assumptions
 
-- Open issues to:
-  - ask questions,
-  - challenge assumptions,
-  - propose alternative designs.
-- Submit pull requests for:
-  - code,
-  - documentation,
-  - additional regtest scenarios.
+These are **explicitly out of scope** for MVP v0.1.
 
-A `CONTRIBUTING.md` file will be added as the project evolves.
+---
+
+## Repository Structure
+
+cbtc-protocol/
+├── data/
+│ └── ledger.json # Off-chain cBTC ledger (mint / redeem events)
+├── docs/
+│ ├── protocol-overview.md # High-level protocol explanation
+│ ├── protocol-invariants.md # Rules that must always hold
+│ └── regtest-setup.md # How to reproduce the MVP
+├── src/
+│ └── coordinator/
+│ ├── open_mint_channel.py
+│ ├── redeem_cbtc.py
+│ ├── status.py
+│ └── calc_redemption_rate.py
+└── README.md
+
+---
+
+## Getting Started
+
+See [`docs/regtest-setup.md`](docs/regtest-setup.md) for a complete, step-by-step guide to:
+
+- install Bitcoin Core
+- configure regtest
+- create wallets
+- mine funds
+- run the cBTC scripts
+
+---
+
+## Status
+
+**MVP v0.1 – Functional & Auditable (Regtest)**
+
+Next milestones:
+- clean reset scenario
+- Lightning / Taproot Assets design
+- multi-CP simulations
+- economic stress testing
 
 ---
 
 ## License
 
-This project is licensed under the MIT License.  
-See [`LICENSE`](LICENSE) for details.
+MIT License.

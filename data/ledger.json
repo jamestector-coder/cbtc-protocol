@@ -1,0 +1,43 @@
+{
+  "events": [
+    {
+      "cp_wallet": "CP1",
+      "deposit_btc": "0.1",
+      "minted_cbtc": 3000,
+      "principal_btc": "0.07000000",
+      "redemption_btc": "0.02000000",
+      "timestamp": "2026-01-24T15:23:25.438976Z",
+      "txid": "e6314835f0475a14fd8c8b1a91a86c817d0a2f88728dceea258eecc2b429e338",
+      "type": "mint",
+      "yield_btc": "0.01000000"
+    },
+    {
+      "btc_paid": "0.00500",
+      "burned_cbtc": "500",
+      "coverage_after": "28.79956",
+      "coverage_before": "24.1663",
+      "rate_btc_per_cbtc": "0.00001",
+      "recipient_address": "bcrt1q9gpclrr5m4v7vgmhpzg73xuyhrkvhz6ggwnjep",
+      "redeemed_cbtc": "500",
+      "redemption_pool_balance_before": "0.72498900",
+      "tier": "Tier 1 \u2013 Full floor zone",
+      "timestamp": "2026-01-24T15:45:49.864439Z",
+      "txid": "165eb48a6831eb3ef84d7dc8949a6e787060b450c079059a51c3ae30e2258b56",
+      "type": "redeem"
+    },
+    {
+      "btc_paid": "0.02000",
+      "burned_cbtc": "2000",
+      "coverage_after": "140.99498",
+      "coverage_before": "28.998996",
+      "rate_btc_per_cbtc": "0.00001",
+      "recipient_address": "bcrt1q9gpclrr5m4v7vgmhpzg73xuyhrkvhz6ggwnjep",
+      "redeemed_cbtc": "2000",
+      "redemption_pool_balance_before": "0.72497490",
+      "tier": "Tier 1 \u2013 Full floor zone",
+      "timestamp": "2026-01-24T15:57:49.735522Z",
+      "txid": "f42ddcba1814113dac4dbdb28539efc51fd871715f068ed80b4133706d237299",
+      "type": "redeem"
+    }
+  ]
+}

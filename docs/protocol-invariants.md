@@ -1,140 +1,70 @@
-# cBTC Protocol – Invariants
+# cBTC Protocol – Invariants (MVP v0.1)
 
-This document defines the **non-negotiable invariants** of the cBTC protocol.
+This document defines the **rules that must never be violated** by the cBTC protocol.
 
-An invariant is a rule that **must always hold true**, regardless of
-implementation details, coordination mechanisms, or future extensions.
-
-If any invariant is violated, the protocol is considered broken.
+These invariants are enforced in the MVP via scripts and deterministic math.
 
 ---
 
-## 1. Issuance Invariants
+## Invariant 1 – Issuance Rate
 
-1. cBTC issuance occurs **only** at Minting Channel creation.
-2. Minted cBTC amount is fixed at issuance time and never increases later.
-3. Issuance formula:
-   - `Minted cBTC = 30,000 × deposited BTC`
-4. No refinancing, rollover, or dynamic leverage is allowed.
-5. Total outstanding cBTC equals the sum of all unredeemed issuance events.
+- cBTC issuance is fixed:
+  - **30,000 cBTC per 1 BTC deposited**
+- Issuance does not depend on price, oracle data, or market conditions
 
 ---
 
-## 2. Collateral Segregation Invariants
+## Invariant 2 – Collateral Split
 
-1. Deposited BTC is always split deterministically:
-   - 70% → Principal
-   - 20% → Redemption Pool
-   - 10% → Yield allocation
-2. These three roles are **strictly segregated**.
-3. Funds assigned to one role must never be reused for another role.
+For every deposit `D`:
 
----
+- Principal = `0.70 × D`
+- Redemption Pool = `0.20 × D`
+- Yield Pool = `0.10 × D`
 
-## 3. Principal Protection Invariants
-
-1. Principal BTC is **never** used to:
-   - pay redemptions,
-   - cover losses,
-   - subsidize yield.
-2. Principal is not subject to liquidation.
-3. Principal loss is not a protocol mechanism.
-4. Principal may only be released to its owner according to channel rules.
+The sum must never exceed `D`.
 
 ---
 
-## 4. Yield Invariants
+## Invariant 3 – Redemption Pool Solvency
 
-1. Yield is **prefunded** at Minting Channel creation.
-2. Yield is isolated per Minting Channel.
-3. Yield distribution is **time-based**, not price-based.
-4. Yield cannot be rehypothecated or lent.
-5. Unvested yield is forfeited upon early channel closure.
-6. Forfeited yield strengthens the Redemption Pool.
-7. Yield forfeiture never affects principal.
+Let:
 
----
+- `O` = outstanding cBTC
+- `R` = Redemption Pool BTC
 
-## 5. Redemption Invariants
+Then:
 
-1. cBTC is redeemable **only for BTC**.
-2. Redemptions are paid **exclusively** from the Redemption Pool.
-3. cBTC is burned upon redemption.
-4. Principal and yield collateral are never used for redemption.
-5. Redemption rules are deterministic and publicly verifiable.
-6. Redemption pricing must always preserve post-redemption coverage ≥ 50% of
-   full-floor liability.
+- Floor liability = `O × 0.00001 BTC`
+- Coverage = `R / floor liability`
 
-The redemption rate for any redemption request MUST be computed such that
-post-redemption coverage is never less than 50% of full-floor liability.
+The protocol must enforce:
 
-#### Reference implementation
-
-A reference implementation of the redemption pricing logic used to enforce the
-minimum coverage invariant is provided in:
-
-- `src/coordinator/calc_redemption_rate.py`
-
-This implementation is provided for transparency and reproducibility and
-demonstrates how the protocol computes the maximum safe redemption rate for a
-given redemption request.
-
-The script is intended for regtest simulations and protocol review.
+- **Coverage ≥ 50% after any redemption**
 
 ---
 
-## 6. Solvency Invariants
+## Invariant 4 – Redemptions
 
-1. A global Redemption Pool backs all outstanding cBTC.
-2. Redemption Pool coverage is evaluated against maximum redemption liability:
-   - `Liability = outstanding cBTC × 0.00001 BTC`
-3. Redemption rates follow deterministic tiers based on coverage.
-4. Issuance halts automatically if solvency thresholds are breached.
-5. No discretionary intervention or emergency governance exists.
-6. Global coverage is defined as P / (O · f) with a hard lower bound of 50%
-   enforced by redemption pricing.
-
+- Redemptions:
+  - burn cBTC
+  - pay BTC only from the Redemption Pool
+- Principal and Yield are never used for redemptions
 
 ---
 
-## 7. Liquidation and Oracle Invariants
+## Invariant 5 – No Liquidations
 
-1. The protocol has **no liquidations**.
-2. The protocol uses **no price oracles**.
-3. No fiat reference prices are required.
-4. Risk management relies on time, prefunding, and conservative issuance.
-
----
-
-## 8. Custody and Trust Invariants
-
-1. The protocol does not require custodians to hold user funds.
-2. Ownership is enforced by Bitcoin keys and scripts.
-3. Users retain custody of their principal at all times.
-4. Coordination mechanisms must not introduce hidden trust assumptions.
+- Minting Channels are never liquidated
+- Principal is never seized due to price movements
+- Risk is absorbed via:
+  - prefunded redemption reserves
+  - deterministic haircuts
 
 ---
 
-## 9. Supply Discipline Invariants
+## Invariant 6 – Auditability
 
-1. There is no discretionary monetary policy.
-2. cBTC supply expands only through issuance.
-3. cBTC supply contracts only through redemption and burn.
-4. Supply rules are deterministic and transparent.
-
----
-
-## 10. Scope Invariants
-
-1. This document defines **protocol-level guarantees**, not implementation details.
-2. MVP shortcuts must not violate any invariant listed above.
-3. Future upgrades must preserve all invariants unless explicitly deprecated.
-
----
-
-## Final Note
-
-These invariants define what cBTC **is**.
-
-Any implementation that violates them is **not** a valid implementation
-of the cBTC protocol.
+- All mint and redeem events must be:
+  - logged in an append-only ledger
+  - reproducible from source data
