@@ -39,39 +39,90 @@ All values are public and auditable.
 
 ---
 
-## 3. Fundamental Solvency Invariant
+## 3. Absolute vs Normalized Coverage
 
-The protocol enforces a single global invariant:
+The cBTC protocol distinguishes between **absolute coverage** and
+**normalized coverage**.
 
-Redemption Pool BTC ≥ 50% × floor liability
-
-Equivalently:
-
-Coverage ratio ≥ 50%
-
-This invariant **must never be violated**.
-
-It has priority over:
-- minting requests,
-- redemption requests,
-- yield considerations,
-- UX considerations.
+This separation is intentional and fundamental.
 
 ---
 
-## 4. Why 50%?
+### 3.1 Absolute Coverage (Solvency Reality)
 
-The 50% floor is chosen to ensure:
+Absolute coverage measures the real solvency of the protocol and is defined as:
 
-- partial but meaningful liquidity under stress,
-- graceful degradation instead of collapse,
-- predictable behavior during redemption surges.
+absolute_coverage = Redemption Pool BTC ÷ floor liability
 
-At 50% coverage:
-- every cBTC holder can still redeem **at least half** of the floor value,
-- no single redemption can exhaust the pool.
+Where:
 
-This replaces liquidations with **deterministic haircutting**.
+floor liability = outstanding cBTC × floor redemption rate
+
+Absolute coverage is the **only value** used to enforce solvency.
+
+The protocol enforces the invariant:
+
+absolute_coverage ≥ 50%
+
+This invariant MUST never be violated.
+
+---
+
+### 3.2 Baseline Coverage at Issuance
+
+At minting, cBTC issuance is designed such that:
+
+- Loan-to-value: 30%
+- Redemption Pool share: 20%
+
+This yields a deterministic baseline coverage:
+
+baseline_coverage = 20% ÷ 30% ≈ 66.67%
+
+This value represents the **normal operating coverage** of the protocol
+immediately after issuance.
+
+---
+
+### 3.3 Normalized Coverage (Operational Reference)
+
+Normalized coverage is defined as:
+
+normalized_coverage = absolute_coverage ÷ baseline_coverage
+
+Therefore:
+
+- At issuance:
+normalized_coverage = 1.0 (100%)
+
+- At the solvency floor:
+normalized_coverage ≈ 0.75 (75%)
+
+Normalized coverage is used exclusively for:
+- tier classification,
+- redemption behavior,
+- operational status reporting.
+
+It does **not** replace or weaken the absolute solvency invariant.
+---
+
+## 4. Fundamental Solvency Invariant
+
+The protocol enforces a single, non-negotiable solvency invariant:
+
+absolute_coverage ≥ 50%
+
+Where absolute coverage is defined as:
+
+absolute_coverage = Redemption Pool BTC ÷ floor liability
+
+This invariant has priority over:
+- minting requests,
+- redemption requests,
+- yield considerations,
+- user experience considerations.
+
+Normalized coverage MUST NOT be used to relax this invariant.
 
 ---
 
@@ -108,6 +159,9 @@ Coverage changes only through two actions:
 - Increases Redemption Pool BTC proportionally
 - Coverage remains stable (~66.7%)
 
+Minting is parameterized such that initial issuance always starts
+at normalized coverage ≈ 100%, corresponding to absolute coverage ≈ 66.67%.
+
 ### 6.2 Redemption
 - Decreases outstanding cBTC
 - Decreases Redemption Pool BTC
@@ -117,38 +171,57 @@ Redemption is the **only operation that can threaten solvency**, and is therefor
 
 ---
 
-## 7. Coverage Zones
+## 7. Coverage Zones (Normalized)
 
-Coverage is interpreted in discrete zones.
+Coverage zones are defined using **normalized coverage**.
+
+Absolute coverage is still enforced internally at all times.
+
+---
 
 ### Zone 1 – Healthy
-Coverage ≥ 60%
 
+normalized_coverage ≥ 100%
+
+Equivalent to:
+absolute_coverage ≥ 66.67%
+
+Characteristics:
 - Full floor redemption rate applies
-- Issuance allowed
+- Minting allowed
 - Redemptions unrestricted
 
 ---
 
 ### Zone 2 – Defensive
-50% ≤ Coverage < 60%
 
-- Redemption haircuts apply
+75% ≤ normalized_coverage < 100%
+
+Equivalent to:
+50% ≤ absolute_coverage < 66.67%
+
+Characteristics:
+- Redemption haircuts may apply
 - Redemption rates dynamically adjust
-- Issuance MAY be restricted or monitored
+- Minting MAY be restricted or monitored
 - Solvency preserved
 
 ---
 
 ### Zone 3 – Critical
-Coverage < 50%
+
+normalized_coverage < 75%
+
+Equivalent to:
+absolute_coverage < 50%
+
+Characteristics:
 - Protocol enters protection mode
-- Redemptions are:
-  - halted, or
-  - strictly pro-rata
+- Redemptions are halted or strictly pro-rata
 - New issuance MUST be restricted
 
-The exact handling is implementation-defined but MUST preserve the invariant.
+The exact handling is implementation-defined but MUST preserve the
+absolute solvency invariant.
 
 ---
 
