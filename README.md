@@ -29,6 +29,7 @@ This MVP proves that the core cBTC mechanics work:
 - Coverage is continuously computed:
   - Floor liability = `outstanding cBTC × 0.00001 BTC`
 - Coverage tiers determine redemption behavior
+- Baseline healthy coverage is 66.67% (derived from standard minting split)
 
 ### ✔ Deterministic Redemptions
 - cBTC holders can redeem cBTC for BTC

@@ -53,6 +53,14 @@ The protocol must enforce:
 
 - **Coverage ≥ 50% after any redemption**
 
+### Redemption Solvency Invariant
+
+- Redemptions MUST always be possible.
+- The Redemption Pool MUST NOT distribute BTC in a way that causes
+  post-redemption coverage to fall below 50%, except in Tier 3 where
+  pro-rata distribution applies.
+- Coverage tiers are evaluated using absolute coverage.
+
 ---
 
 ## Invariant 4 – Redemptions
