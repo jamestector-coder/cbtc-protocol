@@ -71,6 +71,18 @@
       "txid": "eebeb9763e6bce9d9d96ee2d9ef57b13fe97a7b7d393aa83ff21ed4472f6dc26",
       "type": "mint",
       "yield_btc": "0.30000000"
+    },
+    {
+      "cp_wallet": "CP1",
+      "deposit_btc": "0.5",
+      "minted_cbtc": "15000.000",
+      "minted_mC": 15000000,
+      "principal_btc": "0.35000000",
+      "redemption_btc": "0.10000000",
+      "timestamp": "2026-01-28T08:08:33.954565Z",
+      "txid": "642e02f666a4822f4f8977181a1c1836ab9c4fabb949a6fcff11b15266f861db",
+      "type": "mint",
+      "yield_btc": "0.05000000"
     }
   ]
 }

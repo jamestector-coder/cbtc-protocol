@@ -1,27 +1,25 @@
 #!/usr/bin/env python3
 # ------------------------------------------------------------
-# cBTC Protocol – Status / Coverage Report (EXPERIMENTAL)
+# cBTC Protocol – Status (EXPERIMENTAL)
 #
-# This script reports the current state of the cBTC regtest MVP:
-# - Total minted cBTC (from data/ledger.json)
-# - (Future) Total redeemed/burned cBTC
-# - Estimated outstanding cBTC
-# - Redemption Pool BTC (via RPC)
-# - Full-floor liability
-# - Global coverage and tier
+# Shows:
+# - total minted cBTC
+# - total redeemed (burned) cBTC
+# - outstanding cBTC
+# - Redemption Pool BTC
+# - floor liability
+# - absolute coverage (real solvency)
+# - normalized coverage (relative to baseline 66.67%)
+# - coverage tier:
+#     Tier 1 – Full floor     (coverage ≥ 60%)
+#     Tier 2 – Haircuts       (50% ≤ coverage < 60%)
+#     Tier 3 – Protection     (coverage < 50%)
 #
-# ⚠️ WARNING:
-# - Experimental and for educational use only.
-# - DO NOT use on mainnet.
+# Compatible with:
+# - older events with "minted_cbtc" / "burned_cbtc"
+# - newer events with "minted_mC" / "burned_mC"
 #
-# Dependencies:
-#   pip install python-bitcoinrpc
-#
-# Assumptions:
-# - Bitcoin Core is running in regtest with RPC enabled.
-# - Wallet REDEMPTION_POOL already exists.
-# - data/ledger.json exists and follows the format:
-#     { "events": [ { ... }, ... ] }
+# ⚠️ For regtest/testing only. Not production-ready.
 # ------------------------------------------------------------
 
 from decimal import Decimal, getcontext
@@ -29,13 +27,17 @@ from bitcoinrpc.authproxy import AuthServiceProxy
 from pathlib import Path
 import json
 
-getcontext().prec = 16
+getcontext().prec = 18
 
-# --- PROTOCOL CONSTANTS ----------------------------------------------------
+# --- CONSTANTS -------------------------------------------------------------
 
-FLOOR_RATE = Decimal("0.00001")  # BTC per cBTC at full floor
+FLOOR_RATE = Decimal("0.00001")  # BTC per 1 cBTC
 
-# --- RPC CONFIG ------------------------------------------------------------
+# Baseline coverage at mint:
+#  - LTV: 30%
+#  - Redemption Pool: 20%
+# ⇒ baseline = 0.20 / 0.30 = 2/3 ≈ 66.67%
+BASELINE_COVERAGE = (Decimal("0.20") / Decimal("0.30"))
 
 RPC_USER = "cbtc"
 RPC_PASSWORD = "cbtcpassword"
@@ -44,25 +46,21 @@ RPC_HOST = "127.0.0.1"
 
 REDEMPTION_WALLET_NAME = "REDEMPTION_POOL"
 
-# --- LEDGER CONFIG ---------------------------------------------------------
-
 # Resolve repo root (cbtc-protocol/) from this file location:
-# .../cbtc-protocol/src/coordinator/status.py
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LEDGER_PATH = REPO_ROOT / "data" / "ledger.json"
 
 
-# --- LEDGER HELPERS --------------------------------------------------------
+# --- HELPERS ---------------------------------------------------------------
+
+def make_wallet_client(wallet_name: str) -> AuthServiceProxy:
+    url = f"http://{RPC_USER}:{RPC_PASSWORD}@{RPC_HOST}:{RPC_PORT}/wallet/{wallet_name}"
+    return AuthServiceProxy(url)
 
 
 def load_ledger():
-    """
-    Load the JSON ledger from LEDGER_PATH.
-    If it does not exist or is invalid, return an empty ledger.
-    """
     if not LEDGER_PATH.exists():
         return {"events": []}
-
     try:
         with LEDGER_PATH.open("r", encoding="utf-8") as f:
             data = json.load(f)
@@ -73,111 +71,124 @@ def load_ledger():
         return {"events": []}
 
 
-def compute_supply_from_ledger(ledger: dict):
+def sum_minted_and_redeemed_mC(events):
     """
-    Compute total minted and redeemed cBTC from the ledger.
-
-    For now, we only have "mint" events.
-    This function is future-proofed to handle "redeem" events later.
-
     Returns:
-        total_minted_cbtc (Decimal),
-        total_redeemed_cbtc (Decimal),
-        outstanding_cbtc (Decimal)
-    """
-    total_minted = Decimal("0")
-    total_redeemed = Decimal("0")
+      total_minted_mC   – integer milli-cBTC
+      total_redeemed_mC – integer milli-cBTC
 
-    for ev in ledger.get("events", []):
+    Compatible with:
+      - older events with "minted_cbtc" / "burned_cbtc"
+      - newer events with "minted_mC" / "burned_mC"
+    """
+    total_minted_mC = 0
+    total_redeemed_mC = 0
+
+    for ev in events:
         ev_type = ev.get("type")
+
         if ev_type == "mint":
-            minted = Decimal(str(ev.get("minted_cbtc", "0")))
-            total_minted += minted
+            if "minted_mC" in ev:
+                minted_mC = int(ev["minted_mC"])
+            else:
+                mc_str = ev.get("minted_cbtc", "0")
+                minted_cbtc = Decimal(str(mc_str))
+                minted_mC = int((minted_cbtc * Decimal("1000")).quantize(Decimal("1")))
+            total_minted_mC += minted_mC
+
         elif ev_type == "redeem":
-            # Future: if we log redemptions as burns
-            burned = Decimal(str(ev.get("burned_cbtc", "0")))
-            total_redeemed += burned
+            if "burned_mC" in ev:
+                burned_mC = int(ev["burned_mC"])
+            else:
+                bc_str = ev.get("burned_cbtc", "0")
+                burned_cbtc = Decimal(str(bc_str))
+                burned_mC = int((burned_cbtc * Decimal("1000")).quantize(Decimal("1")))
+            total_redeemed_mC += burned_mC
 
-    outstanding = total_minted - total_redeemed
-    if outstanding < 0:
-        outstanding = Decimal("0")
-
-    return total_minted, total_redeemed, outstanding
-
-
-# --- RPC HELPERS -----------------------------------------------------------
+    return total_minted_mC, total_redeemed_mC
 
 
-def make_wallet_client(wallet_name: str) -> AuthServiceProxy:
+def format_cbtc_from_mC(mC: int) -> str:
     """
-    Create an RPC client bound to a specific wallet.
+    Convert integer milli-cBTC to a string with 3 decimal places.
     """
-    url = f"http://{RPC_USER}:{RPC_PASSWORD}@{RPC_HOST}:{RPC_PORT}/wallet/{wallet_name}"
-    return AuthServiceProxy(url)
-
-
-def check_regtest(client: AuthServiceProxy) -> None:
-    """
-    Ensure we are running on regtest, not mainnet.
-    """
-    info = client.getblockchaininfo()
-    chain = info.get("chain")
-    if chain != "regtest":
-        raise RuntimeError(f"Expected regtest chain, but node is on: {chain}")
-
-
-# --- MAIN STATUS LOGIC -----------------------------------------------------
+    cbtc = (Decimal(mC) / Decimal("1000")).quantize(Decimal("0.001"))
+    return f"{cbtc:.3f}"
 
 
 def main():
-    # 1. Load ledger and compute supply numbers
+    # --- Load ledger data ---------------------------------------------------
     ledger = load_ledger()
-    total_minted, total_redeemed, outstanding = compute_supply_from_ledger(ledger)
+    events = ledger.get("events", [])
 
-    # 2. Connect to Redemption Pool wallet and fetch BTC balance
+    total_minted_mC, total_redeemed_mC = sum_minted_and_redeemed_mC(events)
+    outstanding_mC = total_minted_mC - total_redeemed_mC
+
+    total_minted_cbtc_str = format_cbtc_from_mC(total_minted_mC)
+    total_redeemed_cbtc_str = format_cbtc_from_mC(total_redeemed_mC)
+    outstanding_cbtc_str = format_cbtc_from_mC(outstanding_mC)
+
+    outstanding_cbtc = (Decimal(outstanding_mC) / Decimal("1000")).quantize(Decimal("0.001"))
+
+    # --- Get Redemption Pool balance ---------------------------------------
     red_client = make_wallet_client(REDEMPTION_WALLET_NAME)
-    check_regtest(red_client)
+    red_balance_btc = Decimal(str(red_client.getbalance()))
 
-    redemption_pool_btc = Decimal(str(red_client.getbalance()))
-
-    # 3. Compute full-floor liability and coverage
-    liability_floor = outstanding * FLOOR_RATE
-
-    if liability_floor > 0:
-        coverage = redemption_pool_btc / liability_floor
+    # --- Compute floor liability -------------------------------------------
+    if outstanding_cbtc > 0:
+        floor_liability_btc = (outstanding_cbtc * FLOOR_RATE).quantize(Decimal("0.00000001"))
     else:
-        coverage = Decimal("0")
+        floor_liability_btc = Decimal("0")
 
-    # 4. Determine tier (same rough logic as in calc_redemption_rate)
-    if coverage >= Decimal("0.70"):
-        tier = "Tier 1 – Full floor zone"
-    elif coverage >= Decimal("0.50"):
-        tier = "Tier 2 – Haircut zone"
-    elif coverage > Decimal("0"):
-        tier = "Tier 3 – Insolvency zone"
+    # --- Compute absolute + normalized coverage ----------------------------
+    if outstanding_cbtc > 0 and floor_liability_btc > 0:
+        absolute_coverage = red_balance_btc / floor_liability_btc
     else:
-        tier = "No outstanding cBTC / no liability"
+        absolute_coverage = Decimal("0")
 
-    # 5. Pretty-print status
+    if absolute_coverage > 0 and BASELINE_COVERAGE > 0:
+        normalized_coverage = absolute_coverage / BASELINE_COVERAGE
+    else:
+        normalized_coverage = Decimal("0")
+
+    # --- Determine tier using absolute coverage ----------------------------
+    if outstanding_cbtc == 0:
+        tier = "No outstanding cBTC"
+    else:
+        if absolute_coverage >= Decimal("0.60"):
+            tier = "Tier 1 – Full floor (≥ 60%)"
+        elif absolute_coverage >= Decimal("0.50"):
+            tier = "Tier 2 – Haircuts (50–60%)"
+        else:
+            tier = "Tier 3 – Protection mode (< 50%)"
+
+    # --- Output -------------------------------------------------------------
     print("\n=== cBTC Protocol Status (Regtest MVP) ===")
-    print(f"Ledger file:           {LEDGER_PATH}")
+    print(f"Ledger file:           {str(LEDGER_PATH)}")
     print("------------------------------------------")
-    print(f"Total minted cBTC:     {total_minted}")
-    print(f"Total redeemed cBTC:   {total_redeemed}")
-    print(f"Estimated outstanding: {outstanding}")
+    print(f"Total minted cBTC:     {total_minted_cbtc_str}")
+    print(f"Total redeemed cBTC:   {total_redeemed_cbtc_str}")
+    print(f"Estimated outstanding: {outstanding_cbtc_str}")
     print("------------------------------------------")
-    print(f"Redemption Pool BTC:   {redemption_pool_btc}")
-    print(f"Floor liability BTC:   {liability_floor}")
-    if liability_floor > 0:
-        print(f"Coverage:              {coverage:.4%}")
+    print(f"Redemption Pool BTC:   {red_balance_btc:.8f}")
+    print(f"Floor liability BTC:   {floor_liability_btc:.8f}")
+
+    if outstanding_cbtc > 0 and floor_liability_btc > 0:
+        abs_pct = (absolute_coverage * Decimal("100")).quantize(Decimal("0.0001"))
+        baseline_pct = (BASELINE_COVERAGE * Decimal("100")).quantize(Decimal("0.0001"))
+        norm_pct = (normalized_coverage * Decimal("100")).quantize(Decimal("0.0001"))
+
+        print(f"Absolute coverage:     {abs_pct}%")
+        print(f"Baseline coverage:     {baseline_pct}% (treated as 100% health)")
+        print(f"Normalized coverage:   {norm_pct}% of baseline")
     else:
-        print(f"Coverage:              n/a (no liability)")
+        print("Absolute coverage:     N/A")
+        print("Baseline coverage:     66.6667% (design target at mint)")
+        print("Normalized coverage:   N/A")
+
     print(f"Tier:                  {tier}")
     print("==========================================\n")
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as e:
-        print(f"[ERROR] {e}")
+    main()

@@ -14,6 +14,7 @@
 #     - REDEMPTION_POOL wallet
 #     - YIELD_POOL wallet
 # - Calculates minted cBTC = 30,000 * D
+#   (with 3 decimal places, and stores minted_mC = milli-cBTC)
 # - Appends a "mint" event to data/ledger.json
 #
 # ⚠️ WARNING:
@@ -41,7 +42,8 @@ import datetime
 import json
 import sys
 
-getcontext().prec = 16
+# Match precision with other coordinator scripts
+getcontext().prec = 18
 
 # --- PROTOCOL CONSTANTS ----------------------------------------------------
 
@@ -109,7 +111,6 @@ def append_ledger_event(event):
 
 # --- RPC HELPERS -----------------------------------------------------------
 
-
 def make_wallet_client(wallet_name: str) -> AuthServiceProxy:
     """
     Create an RPC client bound to a specific wallet.
@@ -129,7 +130,6 @@ def check_regtest(client: AuthServiceProxy) -> None:
 
 
 # --- MAIN LOGIC ------------------------------------------------------------
-
 
 def main():
     # --- Parse CLI arguments -----------------------------------------------
@@ -151,7 +151,7 @@ def main():
         sys.exit(1)
 
     # --- Connect to node & wallets -----------------------------------------
-    # Use a general client (any wallet) just to check regtest
+    # Use CP wallet to check regtest chain
     general_client = make_wallet_client(cp_wallet_name)
     check_regtest(general_client)
 
@@ -215,12 +215,13 @@ def main():
         print(f"[ERROR] sendmany failed: {e}")
         sys.exit(1)
 
-    # --- Compute minted cBTC -----------------------------------------------
-    minted_cbtc = (D * ISSUANCE_RATE).quantize(Decimal("1"))
+    # --- Compute minted cBTC (3 decimal places) ----------------------------
+    minted_cbtc = (D * ISSUANCE_RATE).quantize(Decimal("0.001"))
+    minted_mC = int((minted_cbtc * Decimal("1000")).quantize(Decimal("1")))
 
     print("\n[RESULT] Minting Channel opened successfully.")
     print(f"         Transaction ID: {txid}")
-    print(f"         Minted cBTC:    {minted_cbtc} cBTC")
+    print(f"         Minted cBTC:    {minted_cbtc:.3f} cBTC")
     print(f"         CP wallet used: {cp_wallet_name}")
 
     # --- Append event to ledger --------------------------------------------
@@ -232,7 +233,8 @@ def main():
         "principal_btc": str(principal),
         "redemption_btc": str(redemption_share),
         "yield_btc": str(yield_share),
-        "minted_cbtc": str(minted_cbtc),
+        "minted_cbtc": f"{minted_cbtc:.3f}",
+        "minted_mC": minted_mC,
         "txid": txid,
     }
     append_ledger_event(event)
